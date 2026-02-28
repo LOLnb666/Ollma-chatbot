@@ -1,0 +1,44 @@
+//@version=5
+indicator("Zone Management", overlay=true)
+
+maxZones = input.int(20, "Max Zones", minval=1)
+
+var box[] zones = array.new_box()
+var bool[] zoneIsSupply = array.new_bool()
+
+addZone(float top, float bottom, bool isSupply) =>
+    b = box.new(left=bar_index, top=top, right=bar_index, bottom=bottom, bgcolor=color.new(isSupply ? color.red : color.green, 85), border_color=isSupply ? color.red : color.green)
+    array.push(zones, b)
+    array.push(zoneIsSupply, isSupply)
+
+// Example zone creation for demonstration.
+if ta.crossover(close, ta.sma(close, 20))
+    addZone(high, low, true)
+if ta.crossunder(close, ta.sma(close, 20))
+    addZone(high, low, false)
+
+// First remove invalidated zones so extension loop only processes active entries.
+for i = array.size(zones) - 1 to 0
+    z = array.get(zones, i)
+    isSupply = array.get(zoneIsSupply, i)
+    zoneTop = box.get_top(z)
+    zoneBottom = box.get_bottom(z)
+
+    invalidateSupply = isSupply and close > zoneTop
+    invalidateDemand = (not isSupply) and close < zoneBottom
+
+    if invalidateSupply or invalidateDemand
+        box.delete(z)
+        array.remove(zones, i)
+        array.remove(zoneIsSupply, i)
+
+// Existing extension behavior remains unchanged for valid zones.
+for i = 0 to array.size(zones) - 1
+    z = array.get(zones, i)
+    box.set_right(z, bar_index)
+
+// maxZones remains a secondary cap after invalidation checks.
+while array.size(zones) > maxZones
+    oldZone = array.shift(zones)
+    box.delete(oldZone)
+    array.shift(zoneIsSupply)
